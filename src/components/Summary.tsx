@@ -20,20 +20,20 @@ function Tile({ icon: Icon, label, children }: {
 }
 
 /**
- * In and out side by side, the form every traffic figure on this page takes.
- * Stacked below sm, where two tiles share a phone's width and "23.3 MB" has
- * roughly 70px available.
+ * Up then down, side by side: the form every traffic figure on this page takes,
+ * and the order the arrows are read in. Stacked below sm, where two tiles share
+ * a phone's width and "23.3 MB" has roughly 70px available.
  */
-function Flow({ down, up, className }: { down: string; up: string; className?: string }) {
+function Flow({ up, down, className }: { up: string; down: string; className?: string }) {
   return (
     <div className={cn("tnum grid grid-cols-1 gap-x-2 sm:grid-cols-2", className)}>
       <span className="inline-flex items-center gap-1">
-        <ArrowDown className="size-3 shrink-0 text-muted-foreground" />
-        {down}
-      </span>
-      <span className="inline-flex items-center gap-1">
         <ArrowUp className="size-3 shrink-0 text-muted-foreground" />
         {up}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <ArrowDown className="size-3 shrink-0 text-muted-foreground" />
+        {down}
       </span>
     </div>
   )
@@ -99,21 +99,23 @@ export function Summary({ nodes }: { nodes: Node[] }) {
 
       <Tile icon={ArrowDownUp} label="今日流量">
         <Flow
-          down={bytes(sum((n) => n.day_rx))}
           up={bytes(sum((n) => n.day_tx))}
+          down={bytes(sum((n) => n.day_rx))}
           className="mt-1 text-sm font-semibold"
         />
         <div className="mt-2 text-xs text-muted-foreground">总流量</div>
-        <Flow down={bytes(sum((n) => n.total_rx))} up={bytes(sum((n) => n.total_tx))} className="mt-0.5 text-sm" />
+        <Flow up={bytes(sum((n) => n.total_tx))} down={bytes(sum((n) => n.total_rx))} className="mt-0.5 text-sm" />
       </Tile>
 
       <Tile icon={Gauge} label="实时网速">
-        <Flow down={rate(now.rx)} up={rate(now.tx)} className="mt-1 text-sm font-semibold" />
+        <Flow up={rate(now.tx)} down={rate(now.rx)} className="mt-1 text-sm font-semibold" />
         <div className="mt-auto pt-1">
+          {/* The first line carries the shade the figure above it is read in,
+              so up is drawn over down. */}
           <Spark
             series={[
-              { values: speedHistory.map((s) => s.rx), className: "text-foreground" },
-              { values: speedHistory.map((s) => s.tx), className: "text-muted-foreground" },
+              { values: speedHistory.map((s) => s.tx), className: "text-foreground" },
+              { values: speedHistory.map((s) => s.rx), className: "text-muted-foreground" },
             ]}
           />
         </div>

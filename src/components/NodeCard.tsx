@@ -150,22 +150,24 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
             />
           </div>
 
+          {/* Up before down, live above cumulative: the same order every other
+              traffic figure on the page is read in. */}
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 text-xs">
-            <span className="tnum inline-flex items-center gap-1.5">
-              <ArrowDown className="size-3 text-muted-foreground" />
-              {m ? rate(m.net_rx) : "—"}
-            </span>
             <span className="tnum inline-flex items-center gap-1.5">
               <ArrowUp className="size-3 text-muted-foreground" />
               {m ? rate(m.net_tx) : "—"}
             </span>
-            <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
-              <ArrowDown className="size-3" />
-              {bytes(node.total_rx)}
+            <span className="tnum inline-flex items-center gap-1.5">
+              <ArrowDown className="size-3 text-muted-foreground" />
+              {m ? rate(m.net_rx) : "—"}
             </span>
             <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
               <ArrowUp className="size-3" />
               {bytes(node.total_tx)}
+            </span>
+            <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
+              <ArrowDown className="size-3" />
+              {bytes(node.total_rx)}
             </span>
           </div>
         </>

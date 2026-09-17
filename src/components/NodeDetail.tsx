@@ -334,7 +334,7 @@ export function NodeDetail({ node }: { node: Node }) {
             .filter(Boolean)
             .join(" · ")}
         />
-        <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
+        <Fact label="今日流量" value={`↑ ${bytes(node.day_tx)} · ↓ ${bytes(node.day_rx)}`} />
         <Fact
           label="续费"
           value={[
@@ -591,8 +591,10 @@ export function NodeDetail({ node }: { node: Node }) {
                   formatter={(v) => rate(Number(v))}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <Line dataKey="net_rx" name="下行" stroke="var(--color-ok)" {...SERIES} />
+                {/* Up before down, matching the order of every other traffic
+                    figure on the page. */}
                 <Line dataKey="net_tx" name="上行" stroke="var(--color-chart-1)" {...SERIES} />
+                <Line dataKey="net_rx" name="下行" stroke="var(--color-ok)" {...SERIES} />
               </LineChart>
             </ResponsiveContainer>
           </Panel>
