@@ -24,6 +24,15 @@ assert.equal(summary.total, 1130)
 assert.equal(summary.monthly, 190)
 assert.ok(Math.abs(summary.remaining! - (120 * 30 + 70 * 60) / AVERAGE_DAYS_PER_MONTH) < 0.000001)
 
+const futureAnnual = calculateFinance(
+  [{ price: 100, currency: "CNY", billing_cycle: "yearly", expires_at: "2029-09-18" }],
+  rates,
+  now,
+)
+assert.equal(futureAnnual.total, 100)
+assert.ok(Math.abs(futureAnnual.remaining! - 100) < 0.000001)
+assert.ok(futureAnnual.remaining! <= futureAnnual.total!)
+
 const incomplete = calculateFinance(
   [{ price: 10, currency: "USD", billing_cycle: "monthly", expires_at: "2026-10-18" }],
   null,

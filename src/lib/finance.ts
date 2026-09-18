@@ -81,7 +81,12 @@ export function calculateFinance(nodes: Pick<Node, "price" | "currency" | "billi
     if (days === null) {
       remainingComplete = false
     } else {
-      remaining += monthlyValue * days / AVERAGE_DAYS_PER_MONTH
+      // `price` is one billing cycle's cost. An expiry date can be several
+      // cycles ahead after a renewal, but that does not make this one price
+      // worth several cycles; without the cap remaining value could exceed
+      // total value.
+      const coveredDays = Math.min(days, months * AVERAGE_DAYS_PER_MONTH)
+      remaining += Math.min(value, monthlyValue * coveredDays / AVERAGE_DAYS_PER_MONTH)
     }
   }
 
