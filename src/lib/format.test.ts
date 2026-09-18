@@ -3,7 +3,7 @@
 // requires no runner, framework or dependency.
 //
 // Nothing imports it, so the bundle never includes it.
-import { axisBytes, axisTop, bytes, cpuName, daysUntil, osName, pair, quarters, timeTicks, uptime } from "./format.ts"
+import { axisBytes, axisTop, bytes, cny, cpuName, daysUntil, osName, pair, quarters, timeTicks, uptime } from "./format.ts"
 
 let failed = 0
 function eq(got: unknown, want: unknown, what: string) {
@@ -24,6 +24,7 @@ eq(bytes(1024), "1.00 KB", "bytes(1 KiB)")
 eq(bytes(10 * 1024), "10.0 KB", "两位数留一位小数")
 eq(bytes(100 * 1024), "100 KB", "三位数不留小数")
 eq(bytes(1024, 1), "1.0 KB", "digits 覆盖默认档位")
+eq(cny(2322.96), "¥2,322.96", "人民币金额带千位分隔和两位小数")
 
 // pair: one unit when both sides share it, two when they do not.
 eq(pair(300 * 1024 ** 2, 900 * 1024 ** 2), "300.00 / 900.00 MB", "同单位只写一次")

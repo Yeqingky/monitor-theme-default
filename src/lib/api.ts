@@ -21,6 +21,40 @@ export type Metrics = {
   procs: number
 }
 
+export type ExchangeRates = {
+  base: "CNY"
+  date: string
+  rates: Record<string, number>
+}
+
+const FX_CODES = ["USD", "EUR", "GBP", "JPY"] as const
+const FX_URL = "https://api.frankfurter.dev/v1/latest?base=CNY&symbols=USD,EUR,GBP,JPY"
+
+/** Convert the provider's `1 CNY = foreign` response to CNY per foreign unit. */
+export function parseExchangeRates(payload: unknown): ExchangeRates | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null
+  const data = payload as { base?: unknown; date?: unknown; rates?: unknown }
+  if (data.base !== "CNY" || typeof data.date !== "string" || !data.date) return null
+  if (!data.rates || typeof data.rates !== "object" || Array.isArray(data.rates)) return null
+
+  const source = data.rates as Record<string, unknown>
+  const rates: Record<string, number> = { CNY: 1 }
+  for (const code of FX_CODES) {
+    const value = source[code]
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null
+    rates[code] = 1 / value
+  }
+  return { base: "CNY", date: data.date, rates }
+}
+
+export async function fetchExchangeRates(): Promise<ExchangeRates> {
+  const response = await fetch(FX_URL, { cache: "no-store" })
+  if (!response.ok) throw new Error(`汇率请求失败: ${response.status}`)
+  const rates = parseExchangeRates(await response.json())
+  if (!rates) throw new Error("汇率响应无效")
+  return rates
+}
+
 export type Node = {
   id: number
   name: string
@@ -114,6 +148,7 @@ export function safeNodes(nodes: Node[]): Node[] {
  */
 export function useNodes() {
   const [nodes, setNodes] = useState<Node[] | null>(null)
+  const [rates, setRates] = useState<ExchangeRates | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Set when the hub answers 401: the status page has been closed to anonymous
   // callers since this tab loaded. The hub also ends the stream, so this surfaces
@@ -127,12 +162,22 @@ export function useNodes() {
     let retry: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
+    let active = true
+
     const receive = (list: Node[]) => {
       const safe = safeNodes(list)
       sample(safe)
       setNodes(safe)
       setError(null)
       setClosed(false)
+    }
+
+    const refreshRates = () => {
+      fetchExchangeRates()
+        .then((next) => { if (active) setRates(next) })
+        // Rates are supplementary: a temporary provider failure must not blank
+        // an already loaded value or the node list itself.
+        .catch(() => {})
     }
 
     const fetchOnce = () =>
@@ -144,6 +189,8 @@ export function useNodes() {
         })
 
     fetchOnce()
+    refreshRates()
+    const rateTimer = setInterval(refreshRates, 24 * 60 * 60 * 1000)
 
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws`
     // A hub restart closes every stream. Without reconnecting, a page that
@@ -174,12 +221,14 @@ export function useNodes() {
     connect()
 
     return () => {
+      active = false
       closed = true
       socket?.close()
       if (poll) clearInterval(poll)
       if (retry) clearTimeout(retry)
+      clearInterval(rateTimer)
     }
   }, [])
 
-  return { nodes, error, closed }
+  return { nodes, rates, error, closed }
 }

@@ -55,7 +55,7 @@ export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
-  const { nodes, error, closed } = useNodes()
+  const { nodes, rates, error, closed } = useNodes()
   const [open, go] = useNodeRoute()
 
   const loadMe = useCallback(() => {
@@ -156,7 +156,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            <Summary nodes={sorted} />
+            <Summary nodes={sorted} rates={rates} />
             {sorted.length === 0 ? (
               <p className="py-16 text-center text-sm text-muted-foreground">还没有节点</p>
             ) : (

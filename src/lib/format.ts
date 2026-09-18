@@ -84,6 +84,12 @@ export function money(amount: number, currency: string): string {
   return `${SYMBOLS[currency] ?? ""}${amount.toFixed(2)}${SYMBOLS[currency] ? "" : ` ${currency}`}`
 }
 
+const CNY_NUMBER = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export function cny(amount: number): string {
+  return `¥${CNY_NUMBER.format(amount)}`
+}
+
 export const CYCLES: Record<string, string> = {
   monthly: "月付",
   quarterly: "季付",
