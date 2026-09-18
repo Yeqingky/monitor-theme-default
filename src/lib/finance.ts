@@ -13,8 +13,20 @@ const CYCLE_MONTHS: Record<string, number | null> = {
   once: null,
 }
 
+// Kept separate from monthly calculation: annual spend must use the original
+// cycle price directly rather than multiplying an already divided total by 12.
+const CYCLE_ANNUAL_MULTIPLIER: Record<string, number | null> = {
+  monthly: 12,
+  quarterly: 4,
+  semiannual: 2,
+  yearly: 1,
+  biennial: 1 / 2,
+  triennial: 1 / 3,
+  once: null,
+}
+
 export type FinanceSummary = {
-  total: number | null
+  annual: number | null
   monthly: number | null
   remaining: number | null
 }
@@ -41,15 +53,14 @@ export function remainingDays(date: string | null, now = Date.now()): number | n
 }
 
 /**
- * Calculate the fleet's actual paid value, monthly spend and remaining value.
+ * Calculate the fleet's annual spend, monthly spend and remaining value.
  * A missing exchange rate or expiry date makes only the affected aggregate
  * unavailable instead of silently presenting a partial total.
  */
 export function calculateFinance(nodes: Pick<Node, "price" | "currency" | "billing_cycle" | "expires_at">[], rates: ExchangeRates | null, now = Date.now()): FinanceSummary {
-  let total = 0
+  let annual = 0
   let monthly = 0
   let remaining = 0
-  let totalComplete = true
   let monthlyComplete = true
   let remainingComplete = true
 
@@ -59,40 +70,37 @@ export function calculateFinance(nodes: Pick<Node, "price" | "currency" | "billi
 
     const value = toCny(price, node.currency, rates)
     if (value === null) {
-      totalComplete = false
       monthlyComplete = false
       remainingComplete = false
       continue
     }
-    total += value
 
     const months = CYCLE_MONTHS[node.billing_cycle]
-    if (months === undefined) {
+    const annualMultiplier = CYCLE_ANNUAL_MULTIPLIER[node.billing_cycle]
+    if (months === undefined || annualMultiplier === undefined) {
       monthlyComplete = false
       remainingComplete = false
       continue
     }
-    // One-off purchases are part of total value only.
-    if (months === null) continue
+    // One-off purchases do not contribute to recurring spend or remaining value.
+    if (months === null || annualMultiplier === null) continue
 
+    annual += value * annualMultiplier
     const monthlyValue = value / months
     monthly += monthlyValue
     const days = remainingDays(node.expires_at, now)
     if (days === null) {
       remainingComplete = false
     } else {
-      // `price` is one billing cycle's cost. An expiry date can be several
-      // cycles ahead after a renewal, but that does not make this one price
-      // worth several cycles; without the cap remaining value could exceed
-      // total value.
-      const coveredDays = Math.min(days, months * AVERAGE_DAYS_PER_MONTH)
-      remaining += Math.min(value, monthlyValue * coveredDays / AVERAGE_DAYS_PER_MONTH)
+      // A long prepaid period is worth every remaining day. The annual spend
+      // metric is deliberately separate from this coverage value.
+      remaining += monthlyValue * days / AVERAGE_DAYS_PER_MONTH
     }
   }
 
   return {
-    total: totalComplete ? total : null,
+    annual: monthlyComplete ? annual : null,
     monthly: monthlyComplete ? monthly : null,
-    remaining: totalComplete && monthlyComplete && remainingComplete ? remaining : null,
+    remaining: monthlyComplete && remainingComplete ? remaining : null,
   }
 }

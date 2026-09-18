@@ -20,7 +20,7 @@ assert.equal(remainingDays("2026-10-18", now), 30)
 assert.equal(remainingDays("2026-09-01", now), 0)
 
 const summary = calculateFinance(nodes, rates, now)
-assert.equal(summary.total, 1130)
+assert.equal(summary.annual, 2280)
 assert.equal(summary.monthly, 190)
 assert.ok(Math.abs(summary.remaining! - (120 * 30 + 70 * 60) / AVERAGE_DAYS_PER_MONTH) < 0.000001)
 
@@ -29,15 +29,24 @@ const futureAnnual = calculateFinance(
   rates,
   now,
 )
-assert.equal(futureAnnual.total, 100)
-assert.ok(Math.abs(futureAnnual.remaining! - 100) < 0.000001)
-assert.ok(futureAnnual.remaining! <= futureAnnual.total!)
+assert.equal(futureAnnual.annual, 100)
+const futureDays = remainingDays("2029-09-18", now)!
+assert.ok(Math.abs(futureAnnual.remaining! - 100 * futureDays / (12 * AVERAGE_DAYS_PER_MONTH)) < 0.000001)
+assert.ok(futureAnnual.remaining! > futureAnnual.annual!)
+
+const cycleSpend = calculateFinance(
+  ["monthly", "quarterly", "semiannual", "yearly", "biennial", "triennial", "once"]
+    .map((billing_cycle) => ({ price: 10, currency: "CNY", billing_cycle, expires_at: null })),
+  rates,
+  now,
+)
+assert.ok(Math.abs(cycleSpend.annual! - (120 + 40 + 20 + 10 + 5 + 10 / 3)) < 0.000001)
 
 const incomplete = calculateFinance(
   [{ price: 10, currency: "USD", billing_cycle: "monthly", expires_at: "2026-10-18" }],
   null,
   now,
 )
-assert.deepEqual(incomplete, { total: null, monthly: null, remaining: null })
+assert.deepEqual(incomplete, { annual: null, monthly: null, remaining: null })
 
 console.log("finance calculation passed")

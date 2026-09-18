@@ -77,7 +77,7 @@ function ValueTile({ nodes, rates }: { nodes: Node[]; rates: ExchangeRates | nul
 
       <div className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 w-[min(25rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border bg-popover p-4 text-popover-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
         <div className="grid grid-cols-3 gap-3">
-          <FinanceMetric label="总价值" value={finance.total} />
+          <FinanceMetric label="每年支出" value={finance.annual} />
           <FinanceMetric label="每月支出" value={finance.monthly} />
           <FinanceMetric label="剩余价值" value={finance.remaining} />
         </div>
