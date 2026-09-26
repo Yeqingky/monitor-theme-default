@@ -63,6 +63,8 @@ export type Node = {
   online: boolean
   /** ISO 3166-1 alpha-2, or empty when the hub could not locate the address. */
   country: string
+  /** Set by the operator; empty is ungrouped. Absent from a hub predating groups. */
+  group?: string
   last_seen: number
   metrics: Metrics | null
   os: string
@@ -79,6 +81,11 @@ export type Node = {
   currency: string
   billing_cycle: string
   expires_at: string | null
+  /**
+   * Days until `expires_at` on the hub's calendar, negative once past, null
+   * without a date. Absent on older hubs.
+   */
+  expires_in?: number | null
   traffic_limit: number
   traffic_mode: string
   traffic_reset_day: number
@@ -86,6 +93,8 @@ export type Node = {
   total_tx: number
   month_rx: number
   month_tx: number
+  /** This period's usage as the plan meters it (`traffic_mode`). Absent on older hubs. */
+  month_used?: number
   month_start: string
   day_rx: number
   day_tx: number
@@ -93,6 +102,11 @@ export type Node = {
   hostname?: string
   ip?: string
   remark?: string
+}
+
+/** Every group in use, in the order of the first node carrying it: the operator's node order decides the tab order. */
+export function groupsOf(nodes: Pick<Node, "group">[]): string[] {
+  return [...new Set(nodes.map((n) => n.group ?? "").filter(Boolean))]
 }
 
 export class ApiError extends Error {
@@ -103,31 +117,69 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Every error the hub answers is one line of plain text written for the reader.
+ * Anything else came from something in front of it -- a proxy's error page, a
+ * CDN's challenge, an empty 502 -- and is described by its status instead.
+ */
+async function failure(res: Response): Promise<ApiError> {
+  const text = res.headers.get("content-type")?.startsWith("text/plain") ? (await res.text()).trim() : ""
+  return new ApiError(
+    res.status,
+    text || (res.status >= 500 ? `服务暂时无法访问（HTTP ${res.status}），稍后再试` : `请求被拦截（HTTP ${res.status}），稍后再试`),
+  )
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    headers: init?.body ? { "content-type": "application/json", ...init?.headers } : init?.headers,
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, {
+      ...init,
+      headers: init?.body ? { "content-type": "application/json", ...init?.headers } : init?.headers,
+    })
+  } catch {
+    throw new ApiError(0, "网络连接失败，稍后再试")
+  }
+  if (!res.ok) throw await failure(res)
+  if (res.status === 204) return undefined as T
+  // A 200 carrying HTML is a proxy's page, not the hub's JSON.
+  return res.json().catch(() => {
+    throw new ApiError(res.status, "收到的不是状态数据，稍后再试")
   })
-  if (!res.ok) throw new ApiError(res.status, (await res.text()) || res.statusText)
-  return res.status === 204 ? (undefined as T) : res.json()
 }
 
 /**
- * Fleet throughput, one sample per push. Held beside the stream that feeds it
- * rather than in the tile that draws it: the summary unmounts while a node page is
- * open, so a buffer held there would restart empty on every return. Two minutes at
- * the hub's push interval.
+ * Throughput, one sample per push, as a series for every node (null) and one per
+ * group ("" for the ungrouped), so the summary above a group tab draws that
+ * group's line rather than the fleet's. Held beside the stream that feeds it
+ * rather than in the tile that draws it: the summary unmounts while a node page
+ * is open, so a buffer held there would restart empty on every return. Two
+ * minutes at the hub's push interval; a group no node carries any more is
+ * dropped. Keyed null rather than by any string, since a group may be named
+ * anything, "*" included.
  */
 const KEEP = 60
-export const speedHistory: { rx: number; tx: number }[] = []
+export const speedHistory = new Map<string | null, { rx: number; tx: number }[]>()
 
-function sample(nodes: Node[]) {
-  const live = nodes.filter((n) => n.online && n.metrics)
-  speedHistory.push({
-    rx: live.reduce((s, n) => s + n.metrics!.net_rx, 0),
-    tx: live.reduce((s, n) => s + n.metrics!.net_tx, 0),
-  })
-  if (speedHistory.length > KEEP) speedHistory.shift()
+export function sample(nodes: Node[]) {
+  const totals = new Map<string | null, { rx: number; tx: number }>()
+  for (const n of nodes) {
+    for (const key of [null, n.group ?? ""]) {
+      const total = totals.get(key) ?? { rx: 0, tx: 0 }
+      if (n.online && n.metrics) {
+        total.rx += n.metrics.net_rx
+        total.tx += n.metrics.net_tx
+      }
+      totals.set(key, total)
+    }
+  }
+  for (const key of speedHistory.keys()) if (!totals.has(key)) speedHistory.delete(key)
+  for (const [key, total] of totals) {
+    const series = speedHistory.get(key) ?? []
+    series.push(total)
+    if (series.length > KEEP) series.shift()
+    speedHistory.set(key, series)
+  }
 }
 
 /** A malformed report must not remove every other node from the page. */
