@@ -6,11 +6,12 @@
 
 ## 代码导航
 
-- `src/App.tsx`: 应用入口, 主题切换, 客户端路由, 站点访问状态和页面骨架.
+- `src/App.tsx`: 应用入口, 主题切换, 客户端路由, 站点访问状态, 主题设置和页面骨架.
 - `src/components/Summary.tsx`: 节点汇总, 分组范围内的实时流量, 费用汇率和剩余价值明细.
 - `src/components/NodeCard.tsx`: 节点卡片, 国家旗帜, 系统图标和资源用量.
 - `src/components/NodeDetail.tsx`: 节点详情和历史图表.
-- `src/lib/api.ts`: 同源 HTTP 和 WebSocket 数据访问, 汇率读取, 分组流量采样和输入校验.
+- `src/lib/api.ts`: 同源 HTTP 和 WebSocket 数据访问, 超时重试, gzip 推送, 汇率读取, 分组流量采样和输入校验.
+- `src/lib/config.ts`: 读取主题设置并按 `theme.json` 的默认值过滤.
 - `src/lib/finance.ts`: 费用, 汇率和剩余价值计算.
 - `src/lib/format.ts`: 页面显示格式化.
 - `src/index.css`: Tailwind 入口, 主题变量, 状态颜色和全局样式.
@@ -32,9 +33,12 @@
 
 - 节点列表按 `sort` 再按 `id` 升序展示; 分组标签按排序后首个节点出现顺序排列, 汇总和实时速度曲线只统计当前分组, `null` 表示全部节点.
 - 新版 hub 提供 `group`, `month_used` 和 `expires_in`; 字段缺失时主题需兼容旧 hub, 未分组用空字符串表示.
+- 顶部汇总受 `theme.json` 的 `show_summary` 控制, 默认显示.
 - 流量方向统一先上传后下载, 计费流量遵循节点的 `traffic_mode`.
+- 计费周期同时支持旧 hub 的命名值和新 hub 的 `<n>m`, 如 `18m`、`60m`.
 - 费用计算使用节点原始计费周期和有效汇率; 缺少汇率或到期日时只将受影响的汇总显示为不可用, 不展示部分总额.
 - 一次性费用不计入周期支出和剩余价值.
+- 图表窗口按 `/api/me` 的 `history_days` 生成; 网络速率图使用对数纵轴, 实时推送优先使用 gzip 帧, 页面回到前台时立即刷新并重连.
 - 历史图表必须使用 hub 返回的丢包统计, 不得对桶级百分比直接平均; 延迟削峰只替换离群值, 超时保留为缺口.
 
 ## 开发与验证命令

@@ -42,6 +42,25 @@ const cycleSpend = calculateFinance(
 )
 assert.ok(Math.abs(cycleSpend.annual! - (120 + 40 + 20 + 10 + 5 + 10 / 3)) < 0.000001)
 
+// Later hubs store any cycle length as `<n>m`.
+const customCycleSpend = calculateFinance(
+  [
+    { price: 100, currency: "CNY", billing_cycle: "60m", expires_at: null },
+    { price: 100, currency: "CNY", billing_cycle: "18m", expires_at: null },
+  ],
+  rates,
+  now,
+)
+assert.ok(Math.abs(customCycleSpend.annual! - (20 + 100 * 12 / 18)) < 0.000001)
+assert.ok(Math.abs(customCycleSpend.monthly! - (100 / 60 + 100 / 18)) < 0.000001)
+
+const unknownCycle = calculateFinance(
+  [{ price: 10, currency: "CNY", billing_cycle: "weekly", expires_at: "2026-10-18" }],
+  rates,
+  now,
+)
+assert.deepEqual(unknownCycle, { annual: null, monthly: null, remaining: null })
+
 const incomplete = calculateFinance(
   [{ price: 10, currency: "USD", billing_cycle: "monthly", expires_at: "2026-10-18" }],
   null,

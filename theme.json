@@ -2,7 +2,16 @@
   "name": "默认主题",
   "short": "default",
   "description": "内置状态面板，黑白配色",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "YeqingKy",
-  "url": "https://github.com/Yeqingky/monitor-theme-default"
+  "url": "https://github.com/Yeqingky/monitor-theme-default",
+  "config": [
+    {
+      "key": "show_summary",
+      "type": "boolean",
+      "label": "显示汇总",
+      "default": true,
+      "help": "节点列表上方的节点数、剩余价值、流量和网速四格"
+    }
+  ]
 }

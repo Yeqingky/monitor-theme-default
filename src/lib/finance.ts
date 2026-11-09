@@ -3,26 +3,21 @@ import type { ExchangeRates, Node } from "@/lib/api"
 /** Average calendar days in one month, used only to prorate remaining value. */
 export const AVERAGE_DAYS_PER_MONTH = 365.2425 / 12
 
-const CYCLE_MONTHS: Record<string, number | null> = {
+// Hub 1.3.0 and earlier store only these names; later hubs store any other
+// length as `<n>m`.
+const NAMED_CYCLE_MONTHS: Record<string, number> = {
   monthly: 1,
   quarterly: 3,
   semiannual: 6,
   yearly: 12,
   biennial: 24,
   triennial: 36,
-  once: null,
 }
 
-// Kept separate from monthly calculation: annual spend must use the original
-// cycle price directly rather than multiplying an already divided total by 12.
-const CYCLE_ANNUAL_MULTIPLIER: Record<string, number | null> = {
-  monthly: 12,
-  quarterly: 4,
-  semiannual: 2,
-  yearly: 1,
-  biennial: 1 / 2,
-  triennial: 1 / 3,
-  once: null,
+/** Months in a billing cycle: null for a one-off, undefined when unrecognized. */
+function cycleMonths(billing: string): number | null | undefined {
+  if (billing === "once") return null
+  return NAMED_CYCLE_MONTHS[billing] ?? (Number(/^(\d+)m$/.exec(billing)?.[1]) || undefined)
 }
 
 export type FinanceSummary = {
@@ -75,17 +70,18 @@ export function calculateFinance(nodes: Pick<Node, "price" | "currency" | "billi
       continue
     }
 
-    const months = CYCLE_MONTHS[node.billing_cycle]
-    const annualMultiplier = CYCLE_ANNUAL_MULTIPLIER[node.billing_cycle]
-    if (months === undefined || annualMultiplier === undefined) {
+    const months = cycleMonths(node.billing_cycle)
+    if (months === undefined) {
       monthlyComplete = false
       remainingComplete = false
       continue
     }
     // One-off purchases do not contribute to recurring spend or remaining value.
-    if (months === null || annualMultiplier === null) continue
+    if (months === null) continue
 
-    annual += value * annualMultiplier
+    // Annual spend uses the original cycle price directly rather than
+    // multiplying an already divided total by 12.
+    annual += value * (12 / months)
     const monthlyValue = value / months
     monthly += monthlyValue
     const days = remainingDays(node.expires_at, now)

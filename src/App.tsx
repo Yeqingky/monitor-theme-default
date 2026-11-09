@@ -6,12 +6,15 @@ import { Summary } from "@/components/Summary"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, groupsOf, useNodes, type ExchangeRates, type Node } from "@/lib/api"
+import { loadConfig } from "@/lib/config"
 
-type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
+// `history_days` is absent from hubs predating the hourly tier, which kept a
+// week for anonymous callers.
+type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean; history_days?: number }
 
 // Split out because recharts is most of this bundle and the list page draws no
-// chart. The landing page is 242 kB rather than 629 kB (77 kB gzipped against
-// 188 kB), with the rest fetched immediately after it paints.
+// chart. The landing page is 288 kB rather than 678 kB (95 kB gzipped against
+// 207 kB), with the rest fetched immediately after it paints.
 const loadDetail = () => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail }))
 const NodeDetail = lazy(loadDetail)
 
@@ -32,7 +35,10 @@ function useNodeRoute() {
   return [
     id,
     (next: number | null) => {
-      history.pushState({}, "", next === null ? "/" : `/node/${next}`)
+      const path = next === null ? "/" : `/node/${next}`
+      // The site name leads to the list from the list as well, and each repeat
+      // would otherwise cost one more press of back.
+      if (location.pathname !== path) history.pushState({}, "", path)
       setId(next)
       scrollTo(0, 0)
     },
@@ -54,7 +60,14 @@ const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
  * listener is otherwise never heard, and the next one is a day away.
  */
 function useTheme() {
-  const [saved, setSaved] = useState(() => localStorage.getItem("theme"))
+  // Storage can be switched off for the site, and then even reading it throws.
+  const [saved, setSaved] = useState(() => {
+    try {
+      return localStorage.getItem("theme")
+    } catch {
+      return null
+    }
+  })
   const system = useSyncExternalStore(
     (notify) => {
       DARK_MEDIA.addEventListener("change", notify)
@@ -64,15 +77,29 @@ function useTheme() {
   )
   const dark = saved ? saved === "dark" : system
 
+  // Switched with every transition held. Cards, buttons and badges fade their
+  // colours over 150 ms while everything else changes at once, so a meter bar
+  // already in the dark palette would vanish into a card still white.
   useEffect(() => {
+    const hold = document.createElement("style")
+    hold.textContent = "*,*::before,*::after{transition:none!important}"
+    document.head.append(hold)
     document.documentElement.classList.toggle("dark", dark)
+    // Resolves the new colours while transitions are off, so removing the
+    // hold starts none.
+    void document.body.offsetWidth
+    hold.remove()
   }, [dark])
 
   return [
     dark,
     () => {
       const next = dark ? "light" : "dark"
-      localStorage.setItem("theme", next)
+      try {
+        localStorage.setItem("theme", next)
+      } catch {
+        // The choice then lasts until the page is closed.
+      }
       setSaved(next)
     },
   ] as const
@@ -82,6 +109,7 @@ export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
+  const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const { nodes, rates, error, closed } = useNodes()
   const [open, go] = useNodeRoute()
   // The list's group tab, held here so it survives a visit to a node's page.
@@ -95,6 +123,9 @@ export default function App() {
 
   useEffect(() => {
     loadMe()
+    // Requested alongside /me, not after it. It never rejects: any failure
+    // yields the defaults.
+    void loadConfig().then(setConfig)
     // Warmed here rather than left to Suspense, which requests the chunk only
     // once a render reaches the detail view, itself waiting on /me. Without this
     // the split trades its first paint for a full-page skeleton over the first
@@ -166,21 +197,28 @@ export default function App() {
             <Skeleton className="h-96" />
           ) : selected ? (
             <Suspense fallback={<Skeleton className="h-96" />}>
-              <NodeDetail node={selected} />
+              <NodeDetail node={selected} historyDays={me.history_days ?? 7} />
             </Suspense>
           ) : (
             <p className="py-16 text-center text-sm text-muted-foreground">
               节点不存在或未公开。<button className="underline" onClick={() => go(null)}>返回列表</button>
             </p>
           )
-        ) : !nodes ? (
+        ) : !nodes || !config ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-72" />
             ))}
           </div>
         ) : (
-          <NodeList nodes={sorted} rates={rates} group={group} onGroup={setGroup} onOpen={go} />
+          <NodeList
+            nodes={sorted}
+            rates={rates}
+            group={group}
+            summary={config.show_summary === true}
+            onGroup={setGroup}
+            onOpen={go}
+          />
         )}
       </main>
     </div>
@@ -189,11 +227,13 @@ export default function App() {
 
 // Group tabs appear only once the operator has grouped something, so a hub
 // without groups keeps the page it always had. The summary follows the tab.
-function NodeList({ nodes, rates, group, onGroup, onOpen }: {
+function NodeList({ nodes, rates, group, summary, onGroup, onOpen }: {
   nodes: Node[]
   rates: ExchangeRates | null
   /** null is every node, "" the ungrouped. */
   group: string | null
+  /** The operator's `show_summary` setting. */
+  summary: boolean
   onGroup: (group: string | null) => void
   onOpen: (id: number) => void
 }) {
@@ -233,7 +273,7 @@ function NodeList({ nodes, rates, group, onGroup, onOpen }: {
           ))}
         </div>
       )}
-      <Summary nodes={shown} rates={rates} group={current} />
+      {summary && <Summary nodes={shown} rates={rates} group={current} />}
       {nodes.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted-foreground">还没有节点</p>
       ) : (

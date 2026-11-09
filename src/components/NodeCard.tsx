@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/Meter"
 import type { Node } from "@/lib/api"
-import { bytes, daysUntil, FOREVER, osName, pair, percent, rate, uptime } from "@/lib/format"
+import { bytes, daysUntil, FOREVER, osName, pair, percent, rate, sinceSeen, uptime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 // Emitted as files and fetched on first use, so a page carries only the flags its
@@ -69,7 +69,7 @@ function deployed(node: Node) {
  * durations, so the badge keeps its shape either way.
  */
 export function Status({ node }: { node: Node }) {
-  const down = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
+  const down = sinceSeen(node)
   const label = node.online
     ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}`
     : deployed(node)
@@ -79,7 +79,6 @@ export function Status({ node }: { node: Node }) {
     // Muted once it stops reporting: the figures on the page are genuine, merely
     // no longer current.
     <Badge
-      variant="outline"
       className={cn("tnum shrink-0 gap-1.5 font-normal", !node.online && "text-muted-foreground")}
     >
       <span
@@ -99,7 +98,7 @@ export function Country({ node }: { node: Node }) {
   const src = FLAGS[node.country]
   if (!src) {
     return (
-      <Badge variant="outline" className="shrink-0 font-normal text-muted-foreground">
+      <Badge className="shrink-0 font-normal text-muted-foreground">
         {node.country}
       </Badge>
     )
@@ -115,8 +114,9 @@ export function Country({ node }: { node: Node }) {
 }
 
 /**
- * The distribution's logo in its brand colour. Mixed toward white on the dark
- * theme, where AlmaLinux's black and CentOS's navy would otherwise vanish.
+ * The distribution's logo in its brand colour, standing in for the name, which
+ * shows on hover. Mixed toward white on the dark theme, where AlmaLinux's black
+ * and CentOS's navy would otherwise vanish.
  */
 function OsIcon({ os }: { os: string }) {
   const name = os.toLowerCase()
@@ -124,10 +124,11 @@ function OsIcon({ os }: { os: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      aria-hidden
+      role="img"
       style={{ "--brand": `#${icon.hex}` } as CSSProperties}
       className="size-3 shrink-0 fill-(--brand) dark:fill-[color-mix(in_oklab,var(--brand)_60%,white)]"
     >
+      <title>{osName(os)}</title>
       <path d={icon.path} />
     </svg>
   )
@@ -175,15 +176,15 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
-            <h3 className="truncate font-medium">{node.name}</h3>
             <Country node={node} />
+            <h3 className="truncate font-medium" title={node.name}>{node.name}</h3>
           </div>
           <p className="mt-1 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
             {node.os && <OsIcon os={node.os} />}
             <span className="truncate">
-              {node.os ? osName(node.os) : "等待首次上报"}
-              {node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}
-              {node.arch ? ` · ${node.arch}` : ""}
+              {node.os
+                ? [node.virt !== "none" && node.virt, node.arch].filter(Boolean).join(" · ")
+                : "等待首次上报"}
             </span>
           </p>
         </div>
